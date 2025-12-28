@@ -1,0 +1,595 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+from database import Database
+from datetime import datetime
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import pandas as pd
+
+class BusManagementApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Bus Management System")
+        self.root.geometry("1200x700")
+        
+        # Initialize database
+        self.db = Database()
+        
+        # Create main notebook (tabs)
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        # Create different tabs
+        self.create_dashboard_tab()
+        self.create_bus_management_tab()
+        self.create_route_management_tab()
+        self.create_schedule_tab()
+        self.create_booking_tab()
+        self.create_reports_tab()
+        
+        # Load initial data
+        self.refresh_buses()
+        self.refresh_routes()
+        self.refresh_schedules()
+        self.refresh_bookings()
+    
+    def create_dashboard_tab(self):
+        self.dashboard_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.dashboard_frame, text="Dashboard")
+        
+        # Dashboard title
+        title_label = tk.Label(self.dashboard_frame, text="Bus Management Dashboard", 
+                              font=("Arial", 16, "bold"))
+        title_label.pack(pady=10)
+        
+        # Statistics frame
+        stats_frame = ttk.LabelFrame(self.dashboard_frame, text="Statistics", padding=10)
+        stats_frame.pack(fill='x', padx=20, pady=10)
+        
+        # Create statistics labels
+        self.total_buses_label = tk.Label(stats_frame, text="Total Buses: 0", 
+                                         font=("Arial", 12))
+        self.total_buses_label.grid(row=0, column=0, padx=20, pady=5, sticky='w')
+        
+        self.active_routes_label = tk.Label(stats_frame, text="Active Routes: 0", 
+                                           font=("Arial", 12))
+        self.active_routes_label.grid(row=0, column=1, padx=20, pady=5, sticky='w')
+        
+        self.today_schedules_label = tk.Label(stats_frame, text="Today's Schedules: 0", 
+                                             font=("Arial", 12))
+        self.today_schedules_label.grid(row=0, column=2, padx=20, pady=5, sticky='w')
+        
+        self.total_bookings_label = tk.Label(stats_frame, text="Total Bookings: 0", 
+                                            font=("Arial", 12))
+        self.total_bookings_label.grid(row=0, column=3, padx=20, pady=5, sticky='w')
+        
+        # Update dashboard statistics
+        self.update_dashboard_stats()
+    
+    def update_dashboard_stats(self):
+        # Get total buses
+        buses = self.db.get_all_buses()
+        self.total_buses_label.config(text=f"Total Buses: {len(buses)}")
+        
+        # Get total routes
+        routes = self.db.get_all_routes()
+        self.active_routes_label.config(text=f"Active Routes: {len(routes)}")
+        
+        # Get today's schedules (simplified)
+        schedules = self.db.get_all_schedules()
+        today = datetime.now().strftime("%Y-%m-%d")
+        today_schedules = len(schedules)  # Simplified
+        self.today_schedules_label.config(text=f"Today's Schedules: {today_schedules}")
+        
+        # Get total bookings
+        bookings = self.db.get_all_bookings()
+        self.total_bookings_label.config(text=f"Total Bookings: {len(bookings)}")
+    
+    def create_bus_management_tab(self):
+        self.bus_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.bus_frame, text="Bus Management")
+        
+        # Left frame for adding buses
+        left_frame = ttk.LabelFrame(self.bus_frame, text="Add New Bus", padding=10)
+        left_frame.pack(side='left', fill='y', padx=5, pady=5)
+        
+        # Bus form
+        tk.Label(left_frame, text="Bus Number:").grid(row=0, column=0, sticky='w', pady=5)
+        self.bus_number_entry = tk.Entry(left_frame, width=25)
+        self.bus_number_entry.grid(row=0, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Capacity:").grid(row=1, column=0, sticky='w', pady=5)
+        self.capacity_entry = tk.Entry(left_frame, width=25)
+        self.capacity_entry.grid(row=1, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Bus Type:").grid(row=2, column=0, sticky='w', pady=5)
+        self.bus_type_combobox = ttk.Combobox(left_frame, values=["AC", "Non-AC", "Sleeper", "Semi-Sleeper"], width=22)
+        self.bus_type_combobox.grid(row=2, column=1, pady=5, padx=5)
+        self.bus_type_combobox.current(0)
+        
+        tk.Label(left_frame, text="Status:").grid(row=3, column=0, sticky='w', pady=5)
+        self.status_combobox = ttk.Combobox(left_frame, values=["Active", "Maintenance", "Inactive"], width=22)
+        self.status_combobox.grid(row=3, column=1, pady=5, padx=5)
+        self.status_combobox.current(0)
+        
+        # Add bus button
+        add_button = tk.Button(left_frame, text="Add Bus", command=self.add_bus, 
+                              bg='green', fg='white', width=15)
+        add_button.grid(row=4, column=0, columnspan=2, pady=15)
+        
+        # Right frame for bus list
+        right_frame = ttk.LabelFrame(self.bus_frame, text="Bus List", padding=10)
+        right_frame.pack(side='right', fill='both', expand=True, padx=5, pady=5)
+        
+        # Treeview for bus list
+        columns = ("ID", "Bus Number", "Capacity", "Type", "Status")
+        self.bus_tree = ttk.Treeview(right_frame, columns=columns, show='headings', height=15)
+        
+        for col in columns:
+            self.bus_tree.heading(col, text=col)
+            self.bus_tree.column(col, width=100)
+        
+        self.bus_tree.pack(fill='both', expand=True)
+        
+        # Scrollbar for treeview
+        scrollbar = ttk.Scrollbar(right_frame, orient='vertical', command=self.bus_tree.yview)
+        self.bus_tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+        
+        # Status update frame
+        status_frame = ttk.Frame(right_frame)
+        status_frame.pack(pady=10)
+        
+        tk.Label(status_frame, text="Update Status:").pack(side='left', padx=5)
+        self.update_status_combobox = ttk.Combobox(status_frame, 
+                                                  values=["Active", "Maintenance", "Inactive"], 
+                                                  width=15)
+        self.update_status_combobox.pack(side='left', padx=5)
+        self.update_status_combobox.current(0)
+        
+        update_button = tk.Button(status_frame, text="Update Status", 
+                                 command=self.update_bus_status,
+                                 bg='blue', fg='white')
+        update_button.pack(side='left', padx=5)
+    
+    def create_route_management_tab(self):
+        self.route_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.route_frame, text="Route Management")
+        
+        # Left frame for adding routes
+        left_frame = ttk.LabelFrame(self.route_frame, text="Add New Route", padding=10)
+        left_frame.pack(side='left', fill='y', padx=5, pady=5)
+        
+        # Route form
+        tk.Label(left_frame, text="Route Name:").grid(row=0, column=0, sticky='w', pady=5)
+        self.route_name_entry = tk.Entry(left_frame, width=25)
+        self.route_name_entry.grid(row=0, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Start Location:").grid(row=1, column=0, sticky='w', pady=5)
+        self.start_location_entry = tk.Entry(left_frame, width=25)
+        self.start_location_entry.grid(row=1, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="End Location:").grid(row=2, column=0, sticky='w', pady=5)
+        self.end_location_entry = tk.Entry(left_frame, width=25)
+        self.end_location_entry.grid(row=2, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Distance (km):").grid(row=3, column=0, sticky='w', pady=5)
+        self.distance_entry = tk.Entry(left_frame, width=25)
+        self.distance_entry.grid(row=3, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Estimated Time:").grid(row=4, column=0, sticky='w', pady=5)
+        self.estimated_time_entry = tk.Entry(left_frame, width=25)
+        self.estimated_time_entry.grid(row=4, column=1, pady=5, padx=5)
+        
+        # Add route button
+        add_button = tk.Button(left_frame, text="Add Route", command=self.add_route, 
+                              bg='green', fg='white', width=15)
+        add_button.grid(row=5, column=0, columnspan=2, pady=15)
+        
+        # Right frame for route list
+        right_frame = ttk.LabelFrame(self.route_frame, text="Route List", padding=10)
+        right_frame.pack(side='right', fill='both', expand=True, padx=5, pady=5)
+        
+        # Treeview for route list
+        columns = ("ID", "Route Name", "Start", "End", "Distance", "Time")
+        self.route_tree = ttk.Treeview(right_frame, columns=columns, show='headings', height=15)
+        
+        for col in columns:
+            self.route_tree.heading(col, text=col)
+            self.route_tree.column(col, width=100)
+        
+        self.route_tree.pack(fill='both', expand=True)
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(right_frame, orient='vertical', command=self.route_tree.yview)
+        self.route_tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+    
+    def create_schedule_tab(self):
+        self.schedule_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.schedule_frame, text="Schedule Management")
+        
+        # Left frame for adding schedules
+        left_frame = ttk.LabelFrame(self.schedule_frame, text="Add New Schedule", padding=10)
+        left_frame.pack(side='left', fill='y', padx=5, pady=5, ipadx=10)
+        
+        # Schedule form
+        tk.Label(left_frame, text="Select Bus:").grid(row=0, column=0, sticky='w', pady=5)
+        self.bus_combobox = ttk.Combobox(left_frame, width=25)
+        self.bus_combobox.grid(row=0, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Select Route:").grid(row=1, column=0, sticky='w', pady=5)
+        self.route_combobox = ttk.Combobox(left_frame, width=25)
+        self.route_combobox.grid(row=1, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Departure Time:").grid(row=2, column=0, sticky='w', pady=5)
+        self.departure_entry = tk.Entry(left_frame, width=25)
+        self.departure_entry.grid(row=2, column=1, pady=5, padx=5)
+        self.departure_entry.insert(0, "HH:MM")
+        
+        tk.Label(left_frame, text="Arrival Time:").grid(row=3, column=0, sticky='w', pady=5)
+        self.arrival_entry = tk.Entry(left_frame, width=25)
+        self.arrival_entry.grid(row=3, column=1, pady=5, padx=5)
+        self.arrival_entry.insert(0, "HH:MM")
+        
+        tk.Label(left_frame, text="Driver Name:").grid(row=4, column=0, sticky='w', pady=5)
+        self.driver_entry = tk.Entry(left_frame, width=25)
+        self.driver_entry.grid(row=4, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Price ($):").grid(row=5, column=0, sticky='w', pady=5)
+        self.price_entry = tk.Entry(left_frame, width=25)
+        self.price_entry.grid(row=5, column=1, pady=5, padx=5)
+        
+        # Add schedule button
+        add_button = tk.Button(left_frame, text="Add Schedule", command=self.add_schedule, 
+                              bg='green', fg='white', width=15)
+        add_button.grid(row=6, column=0, columnspan=2, pady=15)
+        
+        # Right frame for schedule list
+        right_frame = ttk.LabelFrame(self.schedule_frame, text="Schedule List", padding=10)
+        right_frame.pack(side='right', fill='both', expand=True, padx=5, pady=5)
+        
+        # Treeview for schedule list
+        columns = ("ID", "Bus", "Route", "From", "To", "Departure", 
+                  "Arrival", "Driver", "Price", "Booked", "Capacity")
+        self.schedule_tree = ttk.Treeview(right_frame, columns=columns, show='headings', height=15)
+        
+        for col in columns:
+            self.schedule_tree.heading(col, text=col)
+            self.schedule_tree.column(col, width=80)
+        
+        self.schedule_tree.pack(fill='both', expand=True)
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(right_frame, orient='vertical', command=self.schedule_tree.yview)
+        self.schedule_tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+    
+    def create_booking_tab(self):
+        self.booking_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.booking_frame, text="Ticket Booking")
+        
+        # Left frame for new booking
+        left_frame = ttk.LabelFrame(self.booking_frame, text="New Booking", padding=10)
+        left_frame.pack(side='left', fill='y', padx=5, pady=5)
+        
+        # Booking form
+        tk.Label(left_frame, text="Select Schedule:").grid(row=0, column=0, sticky='w', pady=5)
+        self.schedule_combobox = ttk.Combobox(left_frame, width=25)
+        self.schedule_combobox.grid(row=0, column=1, pady=5, padx=5)
+        self.schedule_combobox.bind('<<ComboboxSelected>>', self.on_schedule_select)
+        
+        tk.Label(left_frame, text="Passenger Name:").grid(row=1, column=0, sticky='w', pady=5)
+        self.passenger_name_entry = tk.Entry(left_frame, width=25)
+        self.passenger_name_entry.grid(row=1, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Phone Number:").grid(row=2, column=0, sticky='w', pady=5)
+        self.phone_entry = tk.Entry(left_frame, width=25)
+        self.phone_entry.grid(row=2, column=1, pady=5, padx=5)
+        
+        tk.Label(left_frame, text="Select Seat:").grid(row=3, column=0, sticky='w', pady=5)
+        self.seat_combobox = ttk.Combobox(left_frame, width=25)
+        self.seat_combobox.grid(row=3, column=1, pady=5, padx=5)
+        
+        # Seat availability label
+        self.seat_info_label = tk.Label(left_frame, text="Available seats: 0", fg='blue')
+        self.seat_info_label.grid(row=4, column=0, columnspan=2, pady=5)
+        
+        # Book button
+        book_button = tk.Button(left_frame, text="Book Ticket", command=self.book_ticket, 
+                               bg='green', fg='white', width=15)
+        book_button.grid(row=5, column=0, columnspan=2, pady=15)
+        
+        # Right frame for bookings list
+        right_frame = ttk.LabelFrame(self.booking_frame, text="All Bookings", padding=10)
+        right_frame.pack(side='right', fill='both', expand=True, padx=5, pady=5)
+        
+        # Treeview for bookings
+        columns = ("ID", "Passenger", "Phone", "Seat", "Date", "Status", 
+                  "Departure", "Route", "Bus")
+        self.booking_tree = ttk.Treeview(right_frame, columns=columns, show='headings', height=15)
+        
+        for col in columns:
+            self.booking_tree.heading(col, text=col)
+            self.booking_tree.column(col, width=80)
+        
+        self.booking_tree.pack(fill='both', expand=True)
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(right_frame, orient='vertical', command=self.booking_tree.yview)
+        self.booking_tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+    
+    def create_reports_tab(self):
+        self.reports_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.reports_frame, text="Reports & Analytics")
+        
+        # Report buttons frame
+        button_frame = ttk.Frame(self.reports_frame)
+        button_frame.pack(pady=10)
+        
+        tk.Button(button_frame, text="Generate Revenue Report", 
+                 command=self.generate_revenue_report, width=20).pack(side='left', padx=5)
+        tk.Button(button_frame, text="Bus Utilization", 
+                 command=self.show_bus_utilization, width=20).pack(side='left', padx=5)
+        tk.Button(button_frame, text="Route Popularity", 
+                 command=self.show_route_popularity, width=20).pack(side='left', padx=5)
+        
+        # Report display area
+        self.report_text = tk.Text(self.reports_frame, height=25, width=100)
+        self.report_text.pack(padx=10, pady=10)
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(self.reports_frame, orient='vertical', command=self.report_text.yview)
+        self.report_text.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+    
+    def add_bus(self):
+        bus_number = self.bus_number_entry.get()
+        capacity = self.capacity_entry.get()
+        bus_type = self.bus_type_combobox.get()
+        status = self.status_combobox.get()
+        
+        if not bus_number or not capacity:
+            messagebox.showerror("Error", "Please fill in all required fields")
+            return
+        
+        try:
+            self.db.add_bus(bus_number, int(capacity), bus_type, status)
+            messagebox.showinfo("Success", "Bus added successfully!")
+            self.bus_number_entry.delete(0, tk.END)
+            self.capacity_entry.delete(0, tk.END)
+            self.refresh_buses()
+            self.update_dashboard_stats()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add bus: {str(e)}")
+    
+    def refresh_buses(self):
+        # Clear existing items
+        for item in self.bus_tree.get_children():
+            self.bus_tree.delete(item)
+        
+        # Add buses to treeview
+        buses = self.db.get_all_buses()
+        for bus in buses:
+            self.bus_tree.insert('', 'end', values=bus)
+        
+        # Update combobox in schedule tab
+        bus_list = [f"{bus[0]}: {bus[1]}" for bus in buses]
+        self.bus_combobox['values'] = bus_list
+    
+    def update_bus_status(self):
+        selected_item = self.bus_tree.selection()
+        if not selected_item:
+            messagebox.showerror("Error", "Please select a bus")
+            return
+        
+        bus_id = self.bus_tree.item(selected_item[0])['values'][0]
+        new_status = self.update_status_combobox.get()
+        
+        self.db.update_bus_status(bus_id, new_status)
+        messagebox.showinfo("Success", "Bus status updated!")
+        self.refresh_buses()
+    
+    def add_route(self):
+        route_name = self.route_name_entry.get()
+        start_location = self.start_location_entry.get()
+        end_location = self.end_location_entry.get()
+        distance = self.distance_entry.get()
+        estimated_time = self.estimated_time_entry.get()
+        
+        if not route_name or not start_location or not end_location:
+            messagebox.showerror("Error", "Please fill in all required fields")
+            return
+        
+        try:
+            self.db.add_route(route_name, start_location, end_location, 
+                             float(distance) if distance else None, 
+                             estimated_time if estimated_time else None)
+            messagebox.showinfo("Success", "Route added successfully!")
+            self.route_name_entry.delete(0, tk.END)
+            self.start_location_entry.delete(0, tk.END)
+            self.end_location_entry.delete(0, tk.END)
+            self.distance_entry.delete(0, tk.END)
+            self.estimated_time_entry.delete(0, tk.END)
+            self.refresh_routes()
+            self.update_dashboard_stats()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add route: {str(e)}")
+    
+    def refresh_routes(self):
+        for item in self.route_tree.get_children():
+            self.route_tree.delete(item)
+        
+        routes = self.db.get_all_routes()
+        for route in routes:
+            self.route_tree.insert('', 'end', values=route)
+        
+        # Update combobox in schedule tab
+        route_list = [f"{route[0]}: {route[1]}" for route in routes]
+        self.route_combobox['values'] = route_list
+    
+    def add_schedule(self):
+        bus_selection = self.bus_combobox.get()
+        route_selection = self.route_combobox.get()
+        departure = self.departure_entry.get()
+        arrival = self.arrival_entry.get()
+        driver = self.driver_entry.get()
+        price = self.price_entry.get()
+        
+        if not all([bus_selection, route_selection, departure, arrival, price]):
+            messagebox.showerror("Error", "Please fill in all required fields")
+            return
+        
+        try:
+            bus_id = int(bus_selection.split(':')[0])
+            route_id = int(route_selection.split(':')[0])
+            
+            self.db.add_schedule(bus_id, route_id, departure, arrival, 
+                                driver, float(price))
+            messagebox.showinfo("Success", "Schedule added successfully!")
+            
+            # Clear form
+            self.departure_entry.delete(0, tk.END)
+            self.arrival_entry.delete(0, tk.END)
+            self.driver_entry.delete(0, tk.END)
+            self.price_entry.delete(0, tk.END)
+            self.departure_entry.insert(0, "HH:MM")
+            self.arrival_entry.insert(0, "HH:MM")
+            
+            self.refresh_schedules()
+            self.update_dashboard_stats()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add schedule: {str(e)}")
+    
+    def refresh_schedules(self):
+        for item in self.schedule_tree.get_children():
+            self.schedule_tree.delete(item)
+        
+        schedules = self.db.get_all_schedules()
+        for schedule in schedules:
+            self.schedule_tree.insert('', 'end', values=schedule)
+        
+        # Update combobox in booking tab
+        schedule_list = [f"{s[0]}: {s[2]} ({s[5]})" for s in schedules]
+        self.schedule_combobox['values'] = schedule_list
+    
+    def on_schedule_select(self, event):
+        selection = self.schedule_combobox.get()
+        if selection:
+            schedule_id = int(selection.split(':')[0])
+            available_seats = self.db.get_available_seats(schedule_id)
+            self.seat_combobox['values'] = available_seats
+            self.seat_info_label.config(text=f"Available seats: {len(available_seats)}")
+    
+    def book_ticket(self):
+        schedule_selection = self.schedule_combobox.get()
+        passenger_name = self.passenger_name_entry.get()
+        phone = self.phone_entry.get()
+        seat = self.seat_combobox.get()
+        
+        if not all([schedule_selection, passenger_name, seat]):
+            messagebox.showerror("Error", "Please fill in all required fields")
+            return
+        
+        try:
+            schedule_id = int(schedule_selection.split(':')[0])
+            
+            self.db.add_booking(schedule_id, passenger_name, phone, seat)
+            messagebox.showinfo("Success", "Ticket booked successfully!")
+            
+            # Clear form
+            self.passenger_name_entry.delete(0, tk.END)
+            self.phone_entry.delete(0, tk.END)
+            self.seat_combobox.set('')
+            
+            self.refresh_bookings()
+            self.update_dashboard_stats()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to book ticket: {str(e)}")
+    
+    def refresh_bookings(self):
+        for item in self.booking_tree.get_children():
+            self.booking_tree.delete(item)
+        
+        bookings = self.db.get_all_bookings()
+        for booking in bookings:
+            self.booking_tree.insert('', 'end', values=booking)
+    
+    def generate_revenue_report(self):
+        self.report_text.delete(1.0, tk.END)
+        self.report_text.insert(tk.END, "=== REVENUE REPORT ===\n\n")
+        
+        # Calculate total revenue from bookings
+        bookings = self.db.get_all_bookings()
+        total_revenue = 0
+        
+        self.report_text.insert(tk.END, "Recent Bookings:\n")
+        self.report_text.insert(tk.END, "-" * 80 + "\n")
+        
+        for booking in bookings[:10]:  # Show last 10 bookings
+            self.report_text.insert(tk.END, f"{booking[1]} - ${booking[7] if len(booking) > 7 else 'N/A'}\n")
+        
+        self.report_text.insert(tk.END, f"\nTotal Bookings: {len(bookings)}\n")
+        self.report_text.insert(tk.END, f"Estimated Revenue: ${len(bookings) * 50:.2f}\n")  # Simplified
+    
+    def show_bus_utilization(self):
+        self.report_text.delete(1.0, tk.END)
+        self.report_text.insert(tk.END, "=== BUS UTILIZATION REPORT ===\n\n")
+        
+        schedules = self.db.get_all_schedules()
+        
+        if not schedules:
+            self.report_text.insert(tk.END, "No schedule data available.\n")
+            return
+        
+        bus_utilization = {}
+        for schedule in schedules:
+            bus_number = schedule[1]
+            booked_seats = schedule[9]
+            capacity = schedule[10]
+            
+            if bus_number not in bus_utilization:
+                bus_utilization[bus_number] = {'booked': 0, 'capacity': 0, 'trips': 0}
+            
+            bus_utilization[bus_number]['booked'] += booked_seats
+            bus_utilization[bus_number]['capacity'] += capacity
+            bus_utilization[bus_number]['trips'] += 1
+        
+        for bus, stats in bus_utilization.items():
+            utilization = (stats['booked'] / stats['capacity']) * 100 if stats['capacity'] > 0 else 0
+            self.report_text.insert(tk.END, 
+                f"{bus}: {stats['trips']} trips, "
+                f"{stats['booked']}/{stats['capacity']} seats "
+                f"({utilization:.1f}% utilization)\n")
+    
+    def show_route_popularity(self):
+        self.report_text.delete(1.0, tk.END)
+        self.report_text.insert(tk.END, "=== ROUTE POPULARITY REPORT ===\n\n")
+        
+        bookings = self.db.get_all_bookings()
+        
+        if not bookings:
+            self.report_text.insert(tk.END, "No booking data available.\n")
+            return
+        
+        route_counts = {}
+        for booking in bookings:
+            route = booking[7]  # Route name
+            if route not in route_counts:
+                route_counts[route] = 0
+            route_counts[route] += 1
+        
+        # Sort by popularity
+        sorted_routes = sorted(route_counts.items(), key=lambda x: x[1], reverse=True)
+        
+        for route, count in sorted_routes:
+            self.report_text.insert(tk.END, f"{route}: {count} bookings\n")
+    
+    def run(self):
+        self.root.mainloop()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = BusManagementApp(root)
+    app.run()
