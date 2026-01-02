@@ -1,0 +1,26 @@
+1. Project Overview
+The Bus Management App is a mobile app that digitizes daily bus operations for drivers, conductors, and management. It tracks trips, passenger count, ticket collection, and generates daily reports – making bus operations efficient 
+
+2. Project Statement
+A mobile app to simplify and digitize daily bus operations, reducing paperwork and improving efficiency for transport management.
+
+3. Objective
+- Digitize trip details, passenger count, ticket collection
+- Provide real-time data for management
+- Improve efficiency, transparency, and reliability in bus operations
+
+4. How it Works
+1. Driver starts/ends trip via app
+2. Conductor enters passenger count, ticket amount
+3. Data saved, daily report generated
+4. Management monitors real-time data
+
+Daily overview of the project :
+Day 1 -Project Planning
+
+Day 2 -UI Design Design 
+Day 3 -Frontend Setup 
+Day 4 -JavaScript Logic 
+Day 5 -Data Handling 
+Day 6 -Testing & Fixing 
+Day 7 -Final Review
